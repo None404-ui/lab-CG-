@@ -36,5 +36,6 @@ draw_triangle(200.0, 800.0, 80.0, 80.0, 30.0, 180.0, 2000,2000,image,[0,255,0])
 draw_triangle(1000.0, 800.0, 1150.0, 220.0, 1100.0, 180.0, 2000,2000,image,[0,0,255])
 pil_image = Image.fromarray(image)
 pil_image.save('model.png')
+pil_image.show()
 
 

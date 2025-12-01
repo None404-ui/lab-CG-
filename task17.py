@@ -167,6 +167,6 @@ print("Все полигоны обработаны")
 
 # Сохранение результата
 pil_image = Image.fromarray(image)
-pil_image.save('model.png')
-print("Изображение сохранено как 'model.png'")
+pil_image.save('white_rabbit.png')
+print("Изображение сохранено как 'white_rabbit.png'")
 pil_image.show()

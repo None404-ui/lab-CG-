@@ -122,18 +122,12 @@ for i, face in enumerate(faces):
 
                 draw_triangle(x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen, 2000, 2000, image, color)
 
-        if i % 100 == 0:  # Показываем прогресс каждые 100 полигонов
-            print(f"Обработано {i+1}/{len(faces)} полигонов")
-
-print("Все полигоны обработаны")
-
 # Сохранение модели
 pil_image = Image.fromarray(image)
 pil_image.save('model.png')
 print("Изображение сохранено как 'model.png'")
-
 pil_image.show()
-print("Готово!")
+
 
 
 
