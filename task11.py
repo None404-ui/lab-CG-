@@ -17,3 +17,9 @@ def triangle_normal(x0, y0, z0, x1, y1, z1, x2, y2, z2):
     n_z = v1_x * v2_y - v1_y * v2_x
     
     return n_x, n_y, n_z
+
+
+
+
+
+
