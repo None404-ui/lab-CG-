@@ -43,4 +43,4 @@ for i in range(13):
     y1= int(100+95*math.sin(a))
     x_loop_line(matrix,x0,y0,x1,y1,255)
 matrix_image=Image.fromarray(matrix, 'RGB')
-matrix_image.save('matrix_image_pil.png')
+matrix_image.save('model.png')

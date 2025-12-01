@@ -134,18 +134,11 @@ for i, face in enumerate(faces):
 print("Все полигоны обработаны")
 
 # Сохранение модели
-print("Сохранение изображения...")
 pil_image = Image.fromarray(image)
-pil_image.save('model_basic_lighting.png')
-print("Изображение сохранено как 'model_basic_lighting.png'")
+pil_image.save('model.png')
+print("Изображение сохранено как 'model.png'")
+pil_image.show()
 
-# Показ изображения
-try:
-    pil_image.show()
-except:
-    print("Не удалось автоматически открыть изображение")
-
-print("Готово!")
 
 
 

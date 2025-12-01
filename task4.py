@@ -19,5 +19,5 @@ for point in points:
     if 0 <= screen_x < 2000 and 0 <= screen_y < 2000:
         draw.rectangle([screen_x - 1, screen_y - 1, screen_x + 1, screen_y + 1], fill='white')
 
-img.save('model_points_pil.png')
+img.save('model.png')
 img.show()

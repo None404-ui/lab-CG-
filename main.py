@@ -13,4 +13,4 @@ for y in range(h):
 
 print(matrix)
 matrix_image=Image.fromarray(matrix, 'RGB')
-matrix_image.save('matrix_image_pil.png')
+matrix_image.save('model.png')

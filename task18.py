@@ -1,14 +1,13 @@
 import numpy as np
 from PIL import Image
-
+from pathlib import Path
 from task7 import barycentric_coordinates
 from task11 import triangle_normal
 
 IMAGE_WIDTH = 2000
 IMAGE_HEIGHT = 2000
 MODEL_PATH = Path('model_1.obj')
-TEXTURE_PATH = Path('white_rabbit.png')
-OUTPUT_PATH = Path('model_textured.png')
+OUTPUT_PATH = Path('model.png')
 
 LIGHT_DIRECTION = np.array([0.0, 0.0, 1.0], dtype=np.float32)
 

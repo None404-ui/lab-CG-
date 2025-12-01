@@ -134,5 +134,5 @@ for face in faces:
 
 # Сохранение модели
 print("Сохранение изображения...")
-image.save('model_edges_bresenham.png')
+image.save('model.png')
 image.show()

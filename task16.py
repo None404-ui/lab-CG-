@@ -10,7 +10,7 @@ IMAGE_HEIGHT = 2000
 
 # Пути к файлам
 MODEL_PATH = Path('model_1.obj')
-OUTPUT_PATH = Path('model_rotated_shifted.png')
+OUTPUT_PATH = Path('model.png')
 
 # Углы поворота вокруг осей X, Y, Z (в градусах)
 ALPHA_DEG = 15.0  # вращение вокруг оси X

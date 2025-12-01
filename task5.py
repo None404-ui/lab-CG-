@@ -75,5 +75,5 @@ for face in faces:
             draw.line([start, end], fill=OUTLINE_COLOR, width=1)
 
 # Сохранение результата
-image.save('white_rabbit.png')
+image.save('model.png')
 image.show()
