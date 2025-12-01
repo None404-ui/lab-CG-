@@ -1,216 +1,171 @@
 import numpy as np
 from PIL import Image
-from pathlib import Path
+
 from task7 import barycentric_coordinates
-from task11 import triangle_normal
 
-IMAGE_WIDTH = 2000
-IMAGE_HEIGHT = 2000
-MODEL_PATH = Path('model_1.obj')
-OUTPUT_PATH = Path('model.png')
+# Загрузка модели из файла
+points = []  # список всех вершин (x, y, z)
+faces = []   # список полигонов (индексы вершин)
+texture_coords = []  # список координат текстур (u, v)
+face_texture_indices = []  # список индексов текстур для каждого полигона
 
-LIGHT_DIRECTION = np.array([0.0, 0.0, 1.0], dtype=np.float32)
+with open('model_1.obj', 'r') as f:
+    for line in f:
+        parts = line.strip().split()
+        if not parts:
+            continue
+
+        # Строка вершины: "v x y z"
+        if parts[0] == 'v':
+            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+            points.append([x, y, z])
+
+        # Строка координат текстуры: "vt u v"
+        elif parts[0] == 'vt':
+            u = float(parts[1])
+            v = float(parts[2])
+            texture_coords.append([u, v])
+
+        elif parts[0] == 'f':
+            face_vertices = []
+            face_tex_indices = []
+            for vertex_data in parts[1:]:
+                vertex_parts = vertex_data.split('/')
+                vertex_index = int(vertex_parts[0]) - 1
+                face_vertices.append(vertex_index)
+                tex_index = int(vertex_parts[1]) - 1
+                face_tex_indices.append(tex_index)
+            faces.append(face_vertices)
+            face_texture_indices.append(face_tex_indices)
+
+print(f"Загружено: {len(points)} вершин, {len(faces)} полигонов, {len(texture_coords)} координат текстур")
+
+# Загрузка изображения текстуры в память
+texture_width, texture_height = 512, 512
+texture_array = np.zeros((texture_height, texture_width, 3), dtype=np.uint8)
+for y in range(texture_height):
+    for x in range(texture_width):
+        if (x // 32 + y // 32) % 2 == 0:
+            texture_array[y, x] = [255, 200, 150]
+        else:
+            texture_array[y, x] = [150, 100, 50]
+texture_image = Image.fromarray(texture_array)
+
+# Преобразуем текстуру в numpy массив для быстрого доступа
+texture_array = np.array(texture_image)
+texture_width, texture_height = texture_image.size
+WT = texture_width   # ширина текстуры
+HT = texture_height  # высота текстуры
+
+print(f"Размер текстуры: {WT}x{HT}")
+
+# Подготовка к отрисовке: масштаб и центрирование
+# Находим границы модели
+x_coords = [p[0] for p in points]
+y_coords = [p[1] for p in points]
+min_x, max_x = min(x_coords), max(x_coords)
+min_y, max_y = min(y_coords), max(y_coords)
+
+# Размеры модели
+model_width = max_x - min_x
+model_height = max_y - min_y
+
+# Масштаб чтобы модель поместилась на изображение
+scale = min(1600 / model_width, 1600 / model_height) * 0.9
+
+# Сдвиг чтобы модель была в центре изображения
+center_x = (min_x + max_x) / 2
+center_y = (min_y + max_y) / 2
+offset_x = 1000 - center_x * scale
+offset_y = 1000 - center_y * scale
 
 
-def load_model_with_uv(path: Path) -> Tuple[np.ndarray, np.ndarray, List[List[int]], List[List[Optional[int]]]]:
-    vertices: list[list[float]] = []
-    tex_coords: list[list[float]] = []
-    faces: list[list[int]] = []
-    face_tex_indices: list[list[Optional[int]]] = []
-
-    with path.open('r', encoding='utf-8') as obj_file:
-        for line in obj_file:
-            stripped = line.strip()
-            if not stripped or stripped.startswith('#'):
-                continue
-
-            parts = stripped.split()
-            prefix = parts[0]
-
-            if prefix == 'v':
-                vertices.append(list(map(float, parts[1:4])))
-            elif prefix == 'vt':
-                tex_coords.append(list(map(float, parts[1:3])))
-            elif prefix == 'f':
-                v_indices: list[int] = []
-                vt_indices: list[Optional[int]] = []
-                for vertex_data in parts[1:]:
-                    indices = vertex_data.split('/')
-                    v_indices.append(int(indices[0]) - 1)
-                    if len(indices) > 1 and indices[1]:
-                        vt_indices.append(int(indices[1]) - 1)
-                    else:
-                        vt_indices.append(None)
-
-                if len(v_indices) == 3:
-                    faces.append(v_indices)
-                    face_tex_indices.append(vt_indices)
-                else:
-                    # Простейшая фан-триангуляция, если встретятся полигоны > 3 вершин
-                    for i in range(1, len(v_indices) - 1):
-                        faces.append([v_indices[0], v_indices[i], v_indices[i + 1]])
-                        face_tex_indices.append([vt_indices[0], vt_indices[i], vt_indices[i + 1]])
-
-    return (
-        np.array(vertices, dtype=np.float32),
-        np.array(tex_coords, dtype=np.float32) if tex_coords else np.zeros((0, 2), dtype=np.float32),
-        faces,
-        face_tex_indices,
-    )
-
-
-def compute_projection_params(points: np.ndarray) -> Tuple[float, float, float]:
-    x_coords = points[:, 0]
-    y_coords = points[:, 1]
-
-    min_x, max_x = x_coords.min(), x_coords.max()
-    min_y, max_y = y_coords.min(), y_coords.max()
-
-    width = max(max_x - min_x, 1e-6)
-    height = max(max_y - min_y, 1e-6)
-
-    scale = 0.9 * min(IMAGE_WIDTH / width, IMAGE_HEIGHT / height)
-    center_x = (min_x + max_x) / 2.0
-    center_y = (min_y + max_y) / 2.0
-
-    offset_x = IMAGE_WIDTH / 2.0 - center_x * scale
-    offset_y = IMAGE_HEIGHT / 2.0 - center_y * scale
-    return scale, offset_x, offset_y
-
-
-def project_point(point: Sequence[float], scale: float, offset_x: float, offset_y: float) -> Tuple[float, float]:
-    screen_x = point[0] * scale + offset_x
-    screen_y = IMAGE_HEIGHT - (point[1] * scale + offset_y)
+def project_point(x, y, z):
+    # Переводит 3D координаты в 2D координаты на экране
+    screen_x = x * scale + offset_x
+    # Минус потому что в изображении Y растёт вниз, а в модели вверх
+    screen_y = 2000 - (y * scale + offset_y)
     return screen_x, screen_y
 
 
-def compute_vertex_normals(points: np.ndarray, faces: Sequence[Sequence[int]]) -> np.ndarray:
-    normals = np.zeros_like(points, dtype=np.float32)
-    for face in faces:
-        idx0, idx1, idx2 = face
-        x0, y0, z0 = points[idx0]
-        x1, y1, z1 = points[idx1]
-        x2, y2, z2 = points[idx2]
-        normal = np.array(triangle_normal(x0, y0, z0, x1, y1, z1, x2, y2, z2), dtype=np.float32)
-        normals[face] += normal
-
-    lengths = np.linalg.norm(normals, axis=1, keepdims=True)
-    np.divide(
-        normals,
-        np.where(lengths == 0.0, 1.0, lengths),
-        out=normals,
-    )
-    return normals
+# Создание изображения и z-буфера
+image = np.zeros((2000, 2000, 3), dtype=np.uint8)  # чёрное изображение
+z_buffer = np.full((2000, 2000), float('inf'), dtype=np.float32)  # буфер глубины
 
 
-def draw_triangle_textured(
-    projected: Sequence[Tuple[float, float]],
-    depths: Sequence[float],
-    tex_coords: Sequence[Tuple[float, float]],
-    intensities: Sequence[float],
-    image: np.ndarray,
-    z_buffer: np.ndarray,
-    texture: np.ndarray,
-) -> None:
-    (x0, y0), (x1, y1), (x2, y2) = projected
-    z0, z1, z2 = depths
-    uv0, uv1, uv2 = tex_coords
-    i0, i1, i2 = intensities
+def draw_triangle_textured(z0, z1, z2,
+                           x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen,
+                           u0t, v0t, u1t, v1t, u2t, v2t,
+                           image_width, image_height, image, z_buffer, texture_array, WT, HT):
+    # Находим прямоугольник вокруг треугольника
+    xmin = max(0, int(min(x0_screen, x1_screen, x2_screen)))
+    xmax = min(image_width, int(max(x0_screen, x1_screen, x2_screen)) + 1)
+    ymin = max(0, int(min(y0_screen, y1_screen, y2_screen)))
+    ymax = min(image_height, int(max(y0_screen, y1_screen, y2_screen)) + 1)
 
-    xmin = max(0, int(np.floor(min(x0, x1, x2))))
-    xmax = min(IMAGE_WIDTH - 1, int(np.ceil(max(x0, x1, x2))))
-    ymin = max(0, int(np.floor(min(y0, y1, y2))))
-    ymax = min(IMAGE_HEIGHT - 1, int(np.ceil(max(y0, y1, y2))))
-
-    tex_h, tex_w = texture.shape[:2]
-
-    for y in range(ymin, ymax + 1):
-        for x in range(xmin, xmax + 1):
-            lambdas = barycentric_coordinates(
-                x + 0.5,
-                y + 0.5,
-                x0,
-                y0,
-                x1,
-                y1,
-                x2,
-                y2,
+    # Перебираем все пиксели в этом прямоугольнике
+    for y in range(ymin, ymax):
+        for x in range(xmin, xmax):
+            # Вычисляем барицентрические координаты
+            lambda0, lambda1, lambda2 = barycentric_coordinates(
+                x, y, x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen
             )
-            if any(np.isnan(l) for l in lambdas):
-                continue
 
-            l0, l1, l2 = lambdas
-            if l0 < -1e-5 or l1 < -1e-5 or l2 < -1e-5:
-                continue
+            # Если все веса положительные - точка внутри треугольника
+            if lambda0 > 0 and lambda1 > 0 and lambda2 > 0:
+                # Вычисляем глубину точки 
+                z_point = lambda0 * z0 + lambda1 * z1 + lambda2 * z2
 
-            depth = l0 * z0 + l1 * z1 + l2 * z2
-            if depth >= z_buffer[y, x]:
-                continue
-
-            u = np.clip(l0 * uv0[0] + l1 * uv1[0] + l2 * uv2[0], 0.0, 1.0)
-            v = np.clip(l0 * uv0[1] + l1 * uv1[1] + l2 * uv2[1], 0.0, 1.0)
-
-            tex_x = int(np.clip(round(u * (tex_w - 1)), 0, tex_w - 1))
-            # OBJ координата V отсчитывается снизу, поэтому отражаем по вертикали
-            tex_y = int(np.clip(round((1.0 - v) * (tex_h - 1)), 0, tex_h - 1))
-
-            color = texture[tex_y, tex_x].astype(np.float32)
-            intensity = np.clip(l0 * i0 + l1 * i1 + l2 * i2, 0.0, 1.0)
-            shaded = np.clip(color * (0.2 + 0.8 * intensity), 0, 255)
-
-            image[y, x] = shaded.astype(np.uint8)
-            z_buffer[y, x] = depth
-
-
-def main() -> None:
-    points, tex_coords, faces, tex_faces = load_model_with_uv(MODEL_PATH)
-    print(f'Загружено: {len(points)} вершин, {len(faces)} треугольников')
-
-    if tex_coords.size == 0:
-        raise RuntimeError('В модели отсутствуют текстурные координаты (строки vt)')
-
-    texture_image = Image.open(TEXTURE_PATH).convert('RGB')
-    texture = np.array(texture_image, dtype=np.uint8)
-    print(f'Текстура: {texture.shape[1]}x{texture.shape[0]} пикселей')
-
-    scale, offset_x, offset_y = compute_projection_params(points)
-    vertex_normals = compute_vertex_normals(points, faces)
-    light_dir = LIGHT_DIRECTION / np.linalg.norm(LIGHT_DIRECTION)
-    vertex_intensity = np.clip(vertex_normals @ light_dir, 0.0, 1.0)
-
-    canvas = np.zeros((IMAGE_HEIGHT, IMAGE_WIDTH, 3), dtype=np.uint8)
-    z_buffer = np.full((IMAGE_HEIGHT, IMAGE_WIDTH), np.inf, dtype=np.float32)
-
-    for face, uv_indices in zip(faces, tex_faces):
-        if None in uv_indices:
-            continue
-
-        world_vertices = points[face]
-        projected = [
-            project_point(world_vertices[i], scale, offset_x, offset_y)
-            for i in range(3)
-        ]
-        depths = world_vertices[:, 2]
-        uv_coords = tex_coords[uv_indices]
-        intensities = vertex_intensity[face]
-
-        draw_triangle_textured(
-            projected,
-            depths,
-            uv_coords,
-            intensities,
-            canvas,
-            z_buffer,
-            texture,
-        )
-
-    result_image = Image.fromarray(canvas)
-    result_image.save(OUTPUT_PATH)
-    print(f'Изображение сохранено как {OUTPUT_PATH}')
-    result_image.show()
+                # Рисуем только если эта точка ближе чем то что уже нарисовано
+                if z_point < z_buffer[y, x]:
+                    # Вычисляем координаты текстуры используя барицентрическую интерполяцию
+                    # Формула: [WT(λ0u0t + λ1u1t + λ2u2t), HT(λ0v0t + λ1v1t + λ2v2t)]
+                    u_texture = WT * (lambda0 * u0t + lambda1 * u1t + lambda2 * u2t)
+                    v_texture = HT * (lambda0 * v0t + lambda1 * v1t + lambda2 * v2t)
+                    
+                    # Округляем координаты
+                    u_texture = int(round(u_texture))
+                    v_texture = int(round(v_texture))
+                    
+                    # Получаем цвет из текстуры
+                    # Цвет пикселя берётся напрямую из текстуры по вычисленным координатам
+                    texture_color = texture_array[v_texture, u_texture]
+                    
+                    # Рисуем пиксель цветом из текстуры
+                    image[y, x] = texture_color
+                    
+                    # Запоминаем глубину этой точки
+                    z_buffer[y, x] = z_point
 
 
-if __name__ == '__main__':
-    main()
+# Отрисовка всех полигонов
+for face_idx, face in enumerate(faces):
+    # Берём координаты вершин
+    x0, y0, z0 = points[face[0]]
+    x1, y1, z1 = points[face[1]]
+    x2, y2, z2 = points[face[2]]
 
+    # Переводим вершины в экранные координаты
+    x0_screen, y0_screen = project_point(x0, y0, z0)
+    x1_screen, y1_screen = project_point(x1, y1, z1)
+    x2_screen, y2_screen = project_point(x2, y2, z2)
 
+    tex_indices = face_texture_indices[face_idx]
+    u0t, v0t = texture_coords[tex_indices[0]]
+    u1t, v1t = texture_coords[tex_indices[1]]
+    u2t, v2t = texture_coords[tex_indices[2]]
+    
+    draw_triangle_textured(
+        z0, z1, z2,
+        x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen,
+        u0t, v0t, u1t, v1t, u2t, v2t,
+        2000, 2000, image, z_buffer, texture_array, WT, HT
+    )
+
+print("Все полигоны обработаны")
+
+# Сохранение результата
+pil_image = Image.fromarray(image)
+pil_image.save('textured_model.png')
+print("Изображение сохранено как 'textured_model.png'")
+pil_image.show()
