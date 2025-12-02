@@ -2,6 +2,7 @@ import numpy as np
 from PIL import Image
 
 from task7 import barycentric_coordinates
+from task11 import triangle_normal
 
 # Загрузка модели из файла
 points = []  # список всех вершин (x, y, z)
@@ -37,6 +38,41 @@ with open('model_1.obj', 'r') as f:
             face_texture_indices.append(face_tex_indices)
 
 print(f"Загружено: {len(points)} вершин, {len(faces)} полигонов, {len(texture_coords)} координат текстур")
+
+# Направление света
+light_direction = np.array([0.0, 0.0, 1.0])  # свет светит вдоль оси Z
+light_norm = np.linalg.norm(light_direction)
+
+# Вычисление нормалей для каждой вершины
+# Нормаль вершины = сумма нормалей всех полигонов, которые используют эту вершину
+vertex_normals = np.zeros((len(points), 3), dtype=np.float64)
+
+for face in faces:
+    # Берём координаты трёх вершин треугольника
+    x0, y0, z0 = points[face[0]]
+    x1, y1, z1 = points[face[1]]
+    x2, y2, z2 = points[face[2]]
+    
+    # Вычисляем нормаль этого треугольника
+    n_x, n_y, n_z = triangle_normal(x0, y0, z0, x1, y1, z1, x2, y2, z2)
+    face_normal = np.array([n_x, n_y, n_z])
+    
+    # Добавляем эту нормаль ко всем вершинам треугольника
+    for vertex_index in face:
+        vertex_normals[vertex_index] += face_normal
+
+
+# Вычисление освещения для каждой вершины
+vertex_intensity = np.zeros(len(points), dtype=np.float64)
+
+for i in range(len(points)):
+    n = vertex_normals[i]
+    n_norm = np.linalg.norm(n)  # длина вектора нормали
+    
+    if n_norm > 0 and light_norm > 0:
+        # Косинус угла между нормалью и светом
+        dot_product = np.dot(n, light_direction)
+        vertex_intensity[i] = dot_product / (n_norm * light_norm)
 
 # Загрузка изображения текстуры в память
 texture_image = Image.open('bunny-atlas.jpg')
@@ -83,6 +119,7 @@ z_buffer = np.full((2000, 2000), float('inf'), dtype=np.float32)  # буфер �
 def draw_triangle_textured(z0, z1, z2,
                            x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen,
                            u0t, v0t, u1t, v1t, u2t, v2t,
+                           I0, I1, I2,
                            image_width, image_height, image, z_buffer, texture_array, WT, HT):
     # Находим прямоугольник вокруг треугольника
     xmin = max(0, int(min(x0_screen, x1_screen, x2_screen)))
@@ -114,15 +151,29 @@ def draw_triangle_textured(z0, z1, z2,
                     u_texture = int(round(u_texture))
                     v_texture = int(round(v_texture))
                     
+                    # Проверяем границы текстуры
+                    u_texture = max(0, min(WT - 1, u_texture))
+                    v_texture = max(0, min(HT - 1, v_texture))
+                    
                     # Получаем цвет из текстуры
                     texture_color = texture_array[v_texture, u_texture]
                     
-                    # Рисуем пиксель цветом из текстуры
-                    image[y, x] = texture_color
+                    # Интерполируем интенсивность освещения
+                    intensity = lambda0 * I0 + lambda1 * I1 + lambda2 * I2
+                    brightness = -225 * intensity
+                    # Ограничиваем яркость от 0 до 255 (как в задании 17)
+                    brightness = max(0, min(255, int(brightness)))
+                    brightness_factor = brightness / 255.0
+                    # Применяем затенение к текстуре
+                    shaded_color = texture_color * brightness_factor
+                    # Ограничиваем значения от 0 до 255
+                    shaded_color = np.clip(shaded_color, 0, 255).astype(np.uint8)
+                    
+                    # Рисуем пиксель цветом из текстуры с затенением
+                    image[y, x] = shaded_color
                     
                     # Запоминаем глубину этой точки
                     z_buffer[y, x] = z_point
-
 
 # Отрисовка всех полигонов
 for face_idx, face in enumerate(faces):
@@ -141,10 +192,16 @@ for face_idx, face in enumerate(faces):
     u1t, v1t = texture_coords[tex_indices[1]]
     u2t, v2t = texture_coords[tex_indices[2]]
     
+    # Берём яркость каждой вершины
+    I0 = vertex_intensity[face[0]]
+    I1 = vertex_intensity[face[1]]
+    I2 = vertex_intensity[face[2]]
+    
     draw_triangle_textured(
         z0, z1, z2,
         x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen,
         u0t, v0t, u1t, v1t, u2t, v2t,
+        I0, I1, I2,
         2000, 2000, image, z_buffer, texture_array, WT, HT
     )
 

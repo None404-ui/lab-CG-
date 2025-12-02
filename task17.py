@@ -84,15 +84,14 @@ for face in faces:
 
 
 # Вычисление освещения для каждой вершины
-# Формула: I = <n, L> / (||n|| * ||L||)
 vertex_intensity = np.zeros(len(points), dtype=np.float64)
 
 for i in range(len(points)):
     n = vertex_normals[i]
-    n_norm = np.linalg.norm(n)  # длина вектора нормали ||n||
+    n_norm = np.linalg.norm(n)  # длина вектора нормали
     
     if n_norm > 0 and light_norm > 0:
-        # Косинус угла между нормалью и светом по формуле из задания
+        # Косинус угла между нормалью и светом
         dot_product = np.dot(n, light_direction)
         vertex_intensity[i] = dot_product / (n_norm * light_norm)
 
