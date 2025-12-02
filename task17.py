@@ -62,6 +62,7 @@ def project_point(x, y, z):
 
 # Направление света
 light_direction = np.array([0.0, 0.0, 1.0])  # свет светит вдоль оси Z
+light_norm = np.linalg.norm(light_direction)
 
 # Вычисление нормалей для каждой вершины
 # Нормаль вершины = сумма нормалей всех полигонов, которые используют эту вершину
@@ -83,17 +84,17 @@ for face in faces:
 
 
 # Вычисление освещения для каждой вершины
-# Чем больше нормаль направлена на свет, тем ярче
+# Формула: I = <n, L> / (||n|| * ||L||)
 vertex_intensity = np.zeros(len(points), dtype=np.float64)
 
 for i in range(len(points)):
     n = vertex_normals[i]
-    n_norm = np.linalg.norm(n)  # длина вектора нормали
+    n_norm = np.linalg.norm(n)  # длина вектора нормали ||n||
     
-    if n_norm > 0:
-        # Косинус угла между нормалью и светом
+    if n_norm > 0 and light_norm > 0:
+        # Косинус угла между нормалью и светом по формуле из задания
         dot_product = np.dot(n, light_direction)
-        vertex_intensity[i] = dot_product / n_norm
+        vertex_intensity[i] = dot_product / (n_norm * light_norm)
 
 
 # Создание изображения и z-буфера
@@ -167,6 +168,6 @@ print("Все полигоны обработаны")
 
 # Сохранение результата
 pil_image = Image.fromarray(image)
-pil_image.save('white_rabbit.png')
-print("Изображение сохранено как 'white_rabbit.png'")
+pil_image.save('model.png')
+print("Изображение сохранено как 'model.png'")
 pil_image.show()

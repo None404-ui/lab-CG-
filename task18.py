@@ -12,8 +12,6 @@ face_texture_indices = []  # список индексов текстур для
 with open('model_1.obj', 'r') as f:
     for line in f:
         parts = line.strip().split()
-        if not parts:
-            continue
 
         # Строка вершины: "v x y z"
         if parts[0] == 'v':
@@ -41,23 +39,12 @@ with open('model_1.obj', 'r') as f:
 print(f"Загружено: {len(points)} вершин, {len(faces)} полигонов, {len(texture_coords)} координат текстур")
 
 # Загрузка изображения текстуры в память
-texture_width, texture_height = 512, 512
-texture_array = np.zeros((texture_height, texture_width, 3), dtype=np.uint8)
-for y in range(texture_height):
-    for x in range(texture_width):
-        if (x // 32 + y // 32) % 2 == 0:
-            texture_array[y, x] = [255, 200, 150]
-        else:
-            texture_array[y, x] = [150, 100, 50]
-texture_image = Image.fromarray(texture_array)
-
-# Преобразуем текстуру в numpy массив для быстрого доступа
+texture_image = Image.open('bunny-atlas.jpg')
 texture_array = np.array(texture_image)
 texture_width, texture_height = texture_image.size
 WT = texture_width   # ширина текстуры
 HT = texture_height  # высота текстуры
 
-print(f"Размер текстуры: {WT}x{HT}")
 
 # Подготовка к отрисовке: масштаб и центрирование
 # Находим границы модели
@@ -119,16 +106,15 @@ def draw_triangle_textured(z0, z1, z2,
                 # Рисуем только если эта точка ближе чем то что уже нарисовано
                 if z_point < z_buffer[y, x]:
                     # Вычисляем координаты текстуры используя барицентрическую интерполяцию
-                    # Формула: [WT(λ0u0t + λ1u1t + λ2u2t), HT(λ0v0t + λ1v1t + λ2v2t)]
                     u_texture = WT * (lambda0 * u0t + lambda1 * u1t + lambda2 * u2t)
-                    v_texture = HT * (lambda0 * v0t + lambda1 * v1t + lambda2 * v2t)
+                    v_interp = lambda0 * v0t + lambda1 * v1t + lambda2 * v2t
+                    v_texture = HT * (1 - v_interp)  # Инвертируем v координату
                     
                     # Округляем координаты
                     u_texture = int(round(u_texture))
                     v_texture = int(round(v_texture))
                     
                     # Получаем цвет из текстуры
-                    # Цвет пикселя берётся напрямую из текстуры по вычисленным координатам
                     texture_color = texture_array[v_texture, u_texture]
                     
                     # Рисуем пиксель цветом из текстуры
@@ -162,10 +148,9 @@ for face_idx, face in enumerate(faces):
         2000, 2000, image, z_buffer, texture_array, WT, HT
     )
 
-print("Все полигоны обработаны")
-
 # Сохранение результата
 pil_image = Image.fromarray(image)
-pil_image.save('textured_model.png')
-print("Изображение сохранено как 'textured_model.png'")
+pil_image.save('model.png')
+print("Изображение сохранено как 'model.png'")
 pil_image.show()
+
