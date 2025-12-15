@@ -6,7 +6,7 @@ from task11 import triangle_normal
 
 # Загрузка модели из файла.
 points = []  # список всех вершин (x, y, z)
-faces = []   # список полигонов (индексы вершин)
+faces = []  # список полигонов (индексы вершин)
 texture_coords = []  # список координат текстур (u, v)
 face_texture_indices = []  # список индексов текстур для каждого полигона
 
@@ -52,15 +52,14 @@ for face in faces:
     x0, y0, z0 = points[face[0]]
     x1, y1, z1 = points[face[1]]
     x2, y2, z2 = points[face[2]]
-    
+
     # Вычисляем нормаль этого треугольника
     n_x, n_y, n_z = triangle_normal(x0, y0, z0, x1, y1, z1, x2, y2, z2)
     face_normal = np.array([n_x, n_y, n_z])
-    
+
     # Добавляем эту нормаль ко всем вершинам треугольника
     for vertex_index in face:
         vertex_normals[vertex_index] += face_normal
-
 
 # Вычисление освещения для каждой вершины
 vertex_intensity = np.zeros(len(points), dtype=np.float64)
@@ -68,7 +67,7 @@ vertex_intensity = np.zeros(len(points), dtype=np.float64)
 for i in range(len(points)):
     n = vertex_normals[i]
     n_norm = np.linalg.norm(n)  # длина вектора нормали
-    
+
     if n_norm > 0 and light_norm > 0:
         # Косинус угла между нормалью и светом
         dot_product = np.dot(n, light_direction)
@@ -78,9 +77,8 @@ for i in range(len(points)):
 texture_image = Image.open('bunny-atlas.jpg')
 texture_array = np.array(texture_image)
 texture_width, texture_height = texture_image.size
-WT = texture_width   # ширина текстуры
+WT = texture_width  # ширина текстуры
 HT = texture_height  # высота текстуры
-
 
 # Подготовка к отрисовке: масштаб и центрирование
 # Находим границы модели
@@ -137,7 +135,7 @@ def draw_triangle_textured(z0, z1, z2,
 
             # Если все веса положительные - точка внутри треугольника
             if lambda0 > 0 and lambda1 > 0 and lambda2 > 0:
-                # Вычисляем глубину точки 
+                # Вычисляем глубину точки
                 z_point = lambda0 * z0 + lambda1 * z1 + lambda2 * z2
 
                 # Рисуем только если эта точка ближе чем то что уже нарисовано
@@ -146,18 +144,18 @@ def draw_triangle_textured(z0, z1, z2,
                     u_texture = WT * (lambda0 * u0t + lambda1 * u1t + lambda2 * u2t)
                     v_interp = lambda0 * v0t + lambda1 * v1t + lambda2 * v2t
                     v_texture = HT * (1 - v_interp)  # Инвертируем v координату
-                    
+
                     # Округляем координаты
                     u_texture = int(round(u_texture))
                     v_texture = int(round(v_texture))
-                    
+
                     # Проверяем границы текстуры
                     u_texture = max(0, min(WT - 1, u_texture))
                     v_texture = max(0, min(HT - 1, v_texture))
-                    
+
                     # Получаем цвет из текстуры
                     texture_color = texture_array[v_texture, u_texture]
-                    
+
                     # Интерполируем интенсивность освещения
                     intensity = lambda0 * I0 + lambda1 * I1 + lambda2 * I2
                     brightness = -225 * intensity
@@ -168,12 +166,13 @@ def draw_triangle_textured(z0, z1, z2,
                     shaded_color = texture_color * brightness_factor
                     # Ограничиваем значения от 0 до 255
                     shaded_color = np.clip(shaded_color, 0, 255).astype(np.uint8)
-                    
+
                     # Рисуем пиксель цветом из текстуры с затенением
                     image[y, x] = shaded_color
-                    
+
                     # Запоминаем глубину этой точки
                     z_buffer[y, x] = z_point
+
 
 # Отрисовка всех полигонов
 for face_idx, face in enumerate(faces):
@@ -191,12 +190,12 @@ for face_idx, face in enumerate(faces):
     u0t, v0t = texture_coords[tex_indices[0]]
     u1t, v1t = texture_coords[tex_indices[1]]
     u2t, v2t = texture_coords[tex_indices[2]]
-    
+
     # Берём яркость каждой вершины
     I0 = vertex_intensity[face[0]]
     I1 = vertex_intensity[face[1]]
     I2 = vertex_intensity[face[2]]
-    
+
     draw_triangle_textured(
         z0, z1, z2,
         x0_screen, y0_screen, x1_screen, y1_screen, x2_screen, y2_screen,
