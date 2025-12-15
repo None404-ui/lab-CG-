@@ -4,7 +4,7 @@ from PIL import Image
 from task7 import barycentric_coordinates
 from task11 import triangle_normal
 
-# Загрузка модели из файла
+# Загрузка модели из файла.
 points = []  # список всех вершин (x, y, z)
 faces = []   # список полигонов (индексы вершин)
 texture_coords = []  # список координат текстур (u, v)
